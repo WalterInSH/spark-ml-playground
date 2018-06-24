@@ -1,0 +1,8 @@
+**/.DS_Store
+**/*.idea
+**/metastore_db
+**/spark-warehouse
+**/target
+**/dependency-reduced-pom.xml
+**/.java-version
+**/*.iml
