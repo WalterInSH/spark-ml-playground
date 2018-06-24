@@ -4,7 +4,7 @@ import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.classification.LogisticRegression
 import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
 import org.apache.spark.ml.feature.{OneHotEncoderEstimator, StringIndexer, VectorAssembler}
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 
 object LogisticRegressionColdCallV2 extends Serializable {
@@ -18,38 +18,12 @@ object LogisticRegressionColdCallV2 extends Serializable {
 
     spark.sparkContext.setLogLevel("ERROR")
 
-    val vertexDetail = spark.read
-      .option("header", "true")
-      .option("inferSchema", "true")
-      .csv(getClass.getResource("").getPath + "/../carinsurance/carInsurance_train.csv")
-      .select(col("CarInsurance").alias("label"), col("Marital"),
-        col("Education"), col("Age"), col("Balance"),
-        col("Job"), col("Communication"), col("CarLoan"), col("LastContactDay"),
-        unix_timestamp(col("CallStart"), "HH:mm:ss").alias("CallStart"),
-        unix_timestamp(col("CallEnd"), "HH:mm:ss").alias("CallEnd"))
-        .withColumn("CallDuration", (col("CallEnd") - col("CallStart"))/100)
+    val sample: DataFrame = loadSample(spark, "carInsurance_train.csv")
+    sample.show()
 
-    vertexDetail.printSchema()
-    vertexDetail.show()
+    val Array(training, test) = sample.randomSplit(Array(0.7, 0.3), 12345)
 
-    val indexers = Array("Marital", "Education", "Job", "Communication").map(col => {
-      new StringIndexer().setInputCol(col).setOutputCol(s"${col}Indexer")
-    })
-
-    val encoder = new OneHotEncoderEstimator()
-      .setInputCols(Array("MaritalIndexer", "EducationIndexer", "JobIndexer", "CommunicationIndexer"))
-      .setOutputCols(Array("MaritalVec", "EducationVec", "JobVec", "CommunicationVec"))
-
-    val assembler = new VectorAssembler()
-      .setInputCols(Array("Age", "Balance", "MaritalVec", "EducationVec", "JobVec", "CommunicationVec", "CarLoan", "LastContactDay", "CallDuration"))
-      .setOutputCol("features")
-
-    val Array(training, test) = vertexDetail.randomSplit(Array(0.7, 0.3), 12345)
-
-    val lr = new LogisticRegression()
-
-    val pipeline = new Pipeline()
-      .setStages(indexers ++ Array(encoder, assembler, lr))
+    val pipeline: Pipeline = definePipeline
 
     val model = pipeline.fit(training)
 
@@ -59,9 +33,8 @@ object LogisticRegressionColdCallV2 extends Serializable {
       .setMetricName("areaUnderROC")
 
     val accuracy = evaluator.evaluate(predictions)
-    //0.3156883033851547
-    println(s"Test Error = ${(1.0 - accuracy)}")
-
+    //Test Error = 0.1303923548018049
+    println(s"Test Error = ${1.0 - accuracy}")
 
     /*predictions
       .select("prediction", "label", "Age", "Balance", "Marital", "Education")
@@ -74,5 +47,39 @@ object LogisticRegressionColdCallV2 extends Serializable {
       .csv(getClass.getResource("").getPath + "/../car-insurance-predication-result/")*/
 
     spark.stop()
+  }
+
+  private def definePipeline = {
+    val indexers = Array("Marital", "Education", "Job", "Communication").map(col => {
+      new StringIndexer().setInputCol(col).setOutputCol(s"${col}Indexer")
+    })
+
+    val encoder = new OneHotEncoderEstimator()
+      .setInputCols(Array("MaritalIndexer", "EducationIndexer", "JobIndexer", "CommunicationIndexer"))
+      .setOutputCols(Array("MaritalVec", "EducationVec", "JobVec", "CommunicationVec"))
+
+    val assembler = new VectorAssembler()
+      .setInputCols(Array("Age", "Balance", "MaritalVec", "EducationVec", "JobVec", "CommunicationVec", "CarLoan", "LastContactDay", "CallDuration"))
+      .setOutputCol("features")
+
+    val lr = new LogisticRegression()
+
+    val pipeline = new Pipeline()
+      .setStages(indexers ++ Array(encoder, assembler, lr))
+    pipeline
+  }
+
+  private def loadSample(spark: SparkSession, fileName:String) = {
+    val sample = spark.read
+      .option("header", "true")
+      .option("inferSchema", "true")
+      .csv(getClass.getResource("").getPath + s"/../carinsurance/$fileName")
+      .select(col("CarInsurance").alias("label"), col("Marital"),
+        col("Education"), col("Age"), col("Balance"),
+        col("Job"), col("Communication"), col("CarLoan"), col("LastContactDay"),
+        unix_timestamp(col("CallStart"), "HH:mm:ss").alias("CallStart"),
+        unix_timestamp(col("CallEnd"), "HH:mm:ss").alias("CallEnd"))
+      .withColumn("CallDuration", (col("CallEnd") - col("CallStart")) / 100)
+    sample
   }
 }
