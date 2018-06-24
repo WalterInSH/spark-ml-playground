@@ -1,3 +1,5 @@
+package lr
+
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.classification.LogisticRegression
 import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
@@ -19,9 +21,13 @@ object LogisticRegressionColdCallV2 extends Serializable {
     val vertexDetail = spark.read
       .option("header", "true")
       .option("inferSchema", "true")
-      .csv(getClass.getResource("").getPath + "/carinsurance/carInsurance_train.csv")
-      .select(col("CarInsurance").alias("label"), col("Marital"), col("Education"), col("Age"), col("Balance"),
-        col("Job"), col("Communication"), col("CarLoan"), col("LastContactDay"))
+      .csv(getClass.getResource("").getPath + "/../carinsurance/carInsurance_train.csv")
+      .select(col("CarInsurance").alias("label"), col("Marital"),
+        col("Education"), col("Age"), col("Balance"),
+        col("Job"), col("Communication"), col("CarLoan"), col("LastContactDay"),
+        unix_timestamp(col("CallStart"), "HH:mm:ss").alias("CallStart"),
+        unix_timestamp(col("CallEnd"), "HH:mm:ss").alias("CallEnd"))
+        .withColumn("CallDuration", (col("CallEnd") - col("CallStart"))/100)
 
     vertexDetail.printSchema()
     vertexDetail.show()
@@ -35,7 +41,7 @@ object LogisticRegressionColdCallV2 extends Serializable {
       .setOutputCols(Array("MaritalVec", "EducationVec", "JobVec", "CommunicationVec"))
 
     val assembler = new VectorAssembler()
-      .setInputCols(Array("Age", "Balance", "MaritalVec", "EducationVec", "JobVec", "CommunicationVec", "CarLoan", "LastContactDay"))
+      .setInputCols(Array("Age", "Balance", "MaritalVec", "EducationVec", "JobVec", "CommunicationVec", "CarLoan", "LastContactDay", "CallDuration"))
       .setOutputCol("features")
 
     val Array(training, test) = vertexDetail.randomSplit(Array(0.7, 0.3), 12345)
@@ -65,7 +71,7 @@ object LogisticRegressionColdCallV2 extends Serializable {
       .mode("overwrite")
       .option("header", "true")
       .option("delimiter", "\t")
-      .csv(getClass.getResource("").getPath + "/car-insurance-predication-result/")*/
+      .csv(getClass.getResource("").getPath + "/../car-insurance-predication-result/")*/
 
     spark.stop()
   }

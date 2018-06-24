@@ -1,3 +1,5 @@
+package lr
+
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.classification.LogisticRegression
 import org.apache.spark.ml.evaluation.BinaryClassificationEvaluator
@@ -19,7 +21,7 @@ object LogisticRegressionColdCall extends Serializable {
     val vertexDetail = spark.read
       .option("header", "true")
       .option("inferSchema", "true")
-      .csv(getClass.getResource("").getPath + "/carinsurance/carInsurance_train.csv")
+      .csv(getClass.getResource("").getPath + "/../carinsurance/carInsurance_train.csv")
       .select(col("CarInsurance").alias("label"), col("Marital"), col("Education"), col("Age"), col("Balance"))
 
     vertexDetail.printSchema()
@@ -71,7 +73,7 @@ object LogisticRegressionColdCall extends Serializable {
       .mode("overwrite")
       .option("header", "true")
       .option("delimiter","\t")
-      .csv(getClass.getResource("").getPath + "/car-insurance-predication-result/")
+      .csv(getClass.getResource("").getPath + "/../car-insurance-predication-result/")
 
     spark.stop()
   }
